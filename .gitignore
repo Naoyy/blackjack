@@ -1,0 +1,7 @@
+.venv_game
+
+*.pyc
+__pycache__/
+
+*.csv
+*.ipynb

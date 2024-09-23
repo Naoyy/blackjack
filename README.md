@@ -1,1 +1,3 @@
 # blackjack
+
+python 3.11.9
