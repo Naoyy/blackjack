@@ -34,7 +34,7 @@ class Turn:
         return End.proceed, deck,pos, player_hand,house_hand
 
     @staticmethod 
-    def player(end:int,deck:list,pos:int,player_hand:list=None,house_hand:list=None)->tuple[int,list,int,list,list]:   
+    def player(end:int,deck:list,pos:int,player_hand:list=None,house_hand:list=None,flag=True)->tuple[int,list,int,list,list]:   
         if end != End.proceed:
             return end, deck, pos ,player_hand, house_hand
 
@@ -45,17 +45,11 @@ class Turn:
         if choice == "hit":
             return hit(*args)
         
-        if choice == "double":
+        if choice == "double" and flag:
             return double(*args)
         
-        if choice == "split": #TODO IMPLEMENTER CAR C LA MERD
-            print("NOT YET IMPLEMENTED")
-            return Turn.player(end,*args)
-            # deck,pos, player_hand_1,player_hand_2 = split(deck,pos,player_hand) 
-            # end1,deck,pos,player_hand_1, house_hand = Turn.player(end,deck,pos,player_hand_1,house_hand)
-            # end2,deck,pos,player_hand_2, house_hand = Turn.player(end,deck, pos, player_hand_2,house_hand)
-
-            # return [end1,end2],deck, pos, [player_hand_1,player_hand_2],[house_hand,house_hand]
+        if choice == "split" and flag and (player_hand[0].value == player_hand[1].value): # flag: make sure we don't split twice
+            return split(*args)
         
         if choice == "stay":
             return end,*args

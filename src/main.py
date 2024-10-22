@@ -1,6 +1,8 @@
+import numpy as np
 import os
 import pandas as pd
 from random import shuffle
+from operator import itemgetter 
 
 from helpers.game_builder import Turn
 from helpers.deck_build import non_shuffled_deck
@@ -36,15 +38,21 @@ def start_game():
         
         deck = non_shuffled_deck.copy()
         shuffle(deck)
+        # deck = itemgetter(*[36,37,38,24,0,1,24,10,15,17,39])(non_shuffled_deck) # [10,10,10,7,star1,1,7,.,.,.]
         pos = 0
         choice = "continue"
 
         while choice == "continue":
             end,deck,pos,player_hand,house_hand= Turn.house(*Turn.player(*Turn.start(deck,pos)))
-
-            results_df["end"].append(end)
-            results_df["player hand"].append([card.full_name for card in player_hand])
-            results_df["house_hand"].append([card.full_name for card in house_hand])
+            if type(end) != int:
+                for i in range (len(end)):
+                    results_df["end"].append(end[i])
+                    results_df["player hand"].append([card.full_name for card in player_hand[i]])
+                    results_df["house_hand"].append([card.full_name for card in house_hand[i]])
+            else: 
+                results_df["end"].append(end)
+                results_df["player hand"].append([card.full_name for card in player_hand])
+                results_df["house_hand"].append([card.full_name for card in house_hand])
             
             choice = input("Continue ? Quit ?").lower()
 
