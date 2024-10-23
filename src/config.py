@@ -5,17 +5,21 @@ class Color:
     trefle='trèfle' 
     carreau= 'carreau'
 
-class Value: # aucune idée si ça servira par la suite
-    un="A"
-    deux="2"
-    trois="3"
-    quatre="4"
-    cinq="5"
-    six="6"
-    sept="7"
-    huit="8"
-    neuf="9"
-    dix="10"
-    onze="J"
-    douze="Q"
-    treize="K"
+class End:
+    win = 1
+    lose = 0
+    draw = -1
+    proceed = -2
+
+class Gain: #TODO attention au paiement cf notes carnet
+    hit = 1
+    bj = 1.5
+    double = 2
+    stay = 1
+
+class Loss:
+    hit= -1
+    bj = -1
+    double = -2
+    stay = -1
+    
