@@ -21,5 +21,6 @@ Pour jouer:
 ```
 git clone https://github.com/Naoyy/blackjack.git
 cd blackjack
-python src\main.py
 ```
+Créer un venv + installer requirements.txt
+`python src\main.py`
