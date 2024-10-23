@@ -63,7 +63,7 @@ def hit(deck:list,pos:int,player_hand:list,house_hand:list)->tuple[int,list,int,
                 print(f"House: \n\n {[card.full_name for card in house_hand]} ({get_score(house_hand)}) \n\n Player: {[card.full_name for card in player_hand]} ({get_score(player_hand)})\n")
                 return End.lose,deck,pos, player_hand, house_hand
         
-        print(f"Player turn \n\n House: \n\n {house_hand[0].full_name} \n\n Player: {[card.full_name for card in player_hand]} ({get_score(player_hand)})\n")
+        print(f"Player turn \n\n House: \n\n {house_hand[0].full_name} + Hidden Card \n\n Player: {[card.full_name for card in player_hand]} ({get_score(player_hand)})\n")
         choice = player_decision(player_hand)
 
     return End.proceed,deck,pos,player_hand,house_hand
@@ -109,7 +109,7 @@ def split_hit(deck:list,pos:int,player_hand:list,house_hand:list)->tuple[int,lis
 
         if get_score(player_hand)>21:
                 print("LOSS\nPlayer Bust\n")
-                print(f"House: \n\n {house_hand[0].full_name} + Hidden Card \n\n Player: {[card.full_name for card in player_hand]} ({get_score(player_hand)})\n")
+                print(f"House: \n\n {house_hand[0].full_name} + Hidden Card \n\n Player Hand 1: {[card.full_name for card in player_hand]} ({get_score(player_hand)})\n")
                 return End.lose,deck,pos, player_hand, house_hand
         
         print(f"Player turn \n\n House: \n\n {house_hand[0].full_name} + Hidden Card \n\n Player: {[card.full_name for card in player_hand]} ({get_score(player_hand)})\n")
