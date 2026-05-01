@@ -1,85 +1,83 @@
-from config import End,Color
-from utils.turn import *
+from config import GameResult, Rules
 from helpers.deck_build import Card
-from operator import itemgetter 
+from utils.turn import draw_cards, get_score, hand_str, show_table, get_player_action
+from utils.turn import hit, double, split, evaluate_hand, dealer_draw
+
 
 class Turn:
     @staticmethod
-    def start(deck:list,pos:int)->tuple[int,list,int,list|None,list|None]: 
-        """deck for starting card, pos for position before reshuffle
-    returns:
-     - the end (win/lose/draw/proceed)
-     - card deck for the next step (either player turn or re start) 
-     - position
-     - player hand/None
-     - house hand/none"""
-        cards,deck,pos = get_cards(deck=deck,pos=pos,start=True)
-        ind_p = [0,2]
-        ind_h = [1,3]
-        player_hand= itemgetter(*ind_p)(cards)
-        house_hand = itemgetter(*ind_h)(cards)  
+    def start(deck: list, pos: int) -> tuple:
+        """Deal two cards each to player and house. Detect immediate Blackjacks.
 
-        print("GAME START\n")
+        Returns: (result, deck, pos, player_hand, house_hand)
+        """
+        cards, deck, pos = draw_cards(deck, pos, count=Rules.START_CARDS)
+        player_hand = [cards[0], cards[2]]
+        house_hand = [cards[1], cards[3]]
 
-        if get_score(player_hand) == get_score(house_hand)== 21:
-            print(f"DRAW \n\n House: \n\n {[card.full_name for card in house_hand]} (BlackJack) \n\n Player hand: {[card.full_name for card in player_hand]} (BlackJack)\n")
-            return  End.draw, deck,pos, player_hand,house_hand
-        elif get_score(house_hand)== 21:
-            print(f"LOSS \n\n House: \n\n {[card.full_name for card in house_hand]} (BlackJack) \n\n Player hand: {[card.full_name for card in player_hand]} ({get_score(player_hand)})\n")
-            return  End.lose, deck,pos, player_hand,house_hand
-        elif get_score(player_hand)==21:
-            print(f"WIN \n\n House: \n\n {house_hand[0].full_name} + Hidden Card \n\n Player hand: {[card.full_name for card in player_hand]} (BlackJack)\n")
-            return  End.win, deck,pos, player_hand,house_hand
-        
-        return End.proceed, deck,pos, player_hand,house_hand
+        player_bj = get_score(player_hand) == Rules.BLACKJACK
+        house_bj = get_score(house_hand) == Rules.BLACKJACK
 
-    @staticmethod 
-    def player(end:int,deck:list,pos:int,player_hand:list=None,house_hand:list=None,flag=True)->tuple[int,list,int,list,list]:   
-        if end != End.proceed:
-            return end, deck, pos ,player_hand, house_hand
+        print("\n=== NEW GAME ===")
 
-        print(f"Player turn \n\n House: \n\n {house_hand[0].full_name} + Hidden Card \n\n Player hand: {[card.full_name for card in player_hand]} ({get_score(player_hand)})\n")
-        choice = player_decision(player_hand)
-        args = [deck,pos,player_hand,house_hand]
+        if player_bj and house_bj:
+            print(f"Both Blackjack — Draw!\nHouse: {hand_str(house_hand)}\nPlayer: {hand_str(player_hand)}")
+            return GameResult.DRAW, deck, pos, player_hand, house_hand
 
-        if choice == "hit":
-            return hit(*args)
-        
-        if choice == "double" and flag:
-            return double(*args)
-        
-        if choice == "split" and flag and (player_hand[0].value == player_hand[1].value): # flag: make sure we don't split twice
-            return split(*args)
-        
-        if choice == "stay":
-            return end,*args
-        
-        return Turn.player(end,*args)
-    
+        if house_bj:
+            print(f"House Blackjack — you lose.\nHouse: {hand_str(house_hand)}\nPlayer: {hand_str(player_hand)} ({get_score(player_hand)})")
+            return GameResult.LOSE, deck, pos, player_hand, house_hand
+
+        if player_bj:
+            print(f"Blackjack — you win!\nHouse: {house_hand[0].full_name} + Hidden\nPlayer: {hand_str(player_hand)}")
+            return GameResult.WIN, deck, pos, player_hand, house_hand
+
+        return GameResult.PROCEED, deck, pos, player_hand, house_hand
+
     @staticmethod
-    def house(end:int,deck:list,pos:int,player_hand:list=None,house_hand:list=None)->tuple[int,list,int,list,list]:
-        if end != End.proceed:
-            return end,deck,pos,player_hand,house_hand
-        
-        if get_score(house_hand)>16 and get_score(house_hand)<21:
-            print(f"House: \n{[card.full_name for card in house_hand]} ({get_score(house_hand)}) \n\n Player hand: {[card.full_name for card in player_hand]} ({get_score(player_hand)})\n")
-            if get_score(house_hand)< get_score(player_hand):
-                print("CONGRATS ! You win !\n")
-                return End.win,deck,pos,player_hand,house_hand
-            
-            elif get_score(house_hand) == get_score(player_hand):
-                print("DRAW ! Better luck next time ! \n")
-                return End.draw ,deck,pos,player_hand,house_hand
-            
-            elif get_score(house_hand) > get_score(player_hand):
-                print("YOU LOST\n")
-                return End.lose, deck, pos,player_hand,house_hand
+    def player(result: int, deck: list, pos: int, player_hand: list = None, house_hand: list = None, first_action: bool = True) -> tuple:
+        """Handle the player's turn.
 
-        deck,pos,house_hand= pick(deck, pos, house_hand)
+        `first_action` prevents double/split after the first decision.
+        Returns: (result, deck, pos, player_hand, house_hand, action)
+        where action is 'double', 'split', 'blackjack', or 'normal'.
+        """
+        if result != GameResult.PROCEED:
+            # Blackjack detected at start — propagate with appropriate label
+            action = "blackjack" if result == GameResult.WIN else "normal"
+            return result, deck, pos, player_hand, house_hand, action
+
+        show_table(player_hand, house_hand)
+        action = get_player_action(player_hand)
+
+        if action == "hit":
+            result, deck, pos, player_hand, house_hand = hit(deck, pos, player_hand, house_hand)
+            return result, deck, pos, player_hand, house_hand, "normal"
+
+        if action == "double" and first_action:
+            result, deck, pos, player_hand, house_hand = double(deck, pos, player_hand, house_hand)
+            return result, deck, pos, player_hand, house_hand, "double"
+
+        if action == "split" and first_action and player_hand[0].value == player_hand[1].value:
+            result, deck, pos, player_hand, house_hand = split(deck, pos, player_hand, house_hand)
+            return result, deck, pos, player_hand, house_hand, "split"
+
+        if action == "stay":
+            return result, deck, pos, player_hand, house_hand, "normal"
+
+        # invalid action, re-prompt
+        return Turn.player(result, deck, pos, player_hand, house_hand, first_action=False)
+
+    @staticmethod
+    def house(result: int, deck: list, pos: int, player_hand: list = None, house_hand: list = None, action: str = "normal") -> tuple:
+        """Handle the dealer's turn, then evaluate the outcome.
         
-        if get_score(house_hand)>21:
-            print(f"House: \n{[card.full_name for card in house_hand]} ({get_score(house_hand)}) \n\n Player hand: {[card.full_name for card in player_hand]} ({get_score(player_hand)})\n")
-            print("CONGRATS ! You win, house bust\n")
-            return End.win,deck,pos,player_hand,house_hand
-        
-        return Turn.house(end,deck,pos,player_hand,house_hand)
+        Returns: (result, deck, pos, player_hand, house_hand, action)
+        'action' is passed through unchanged so main.py can use it for payout.
+        """
+        if result != GameResult.PROCEED:
+            return result, deck, pos, player_hand, house_hand, action
+
+        deck, pos, house_hand = dealer_draw(deck, pos, house_hand)
+        final_result = evaluate_hand(player_hand, house_hand)
+        return final_result, deck, pos, player_hand, house_hand, action
