@@ -1,242 +1,318 @@
-import uuid
-import pandas as pd
-from pathlib import Path
-from random import shuffle
+"""
+Blackjack Streamlit App — Entry Point
+"""
+import sys, os
+sys.path.insert(0, os.path.dirname(__file__))
 
-from helpers.game_builder import Turn
-from helpers.deck_build import non_shuffled_deck
-from config import GameResult, Payout, Bet, Wallet
+import streamlit as st
 
-DATA_DIR = Path("data")
-CACHE_FILE = DATA_DIR / "cache.csv"
+st.set_page_config(
+    page_title="Blackjack 🃏",
+    page_icon="🃏",
+    layout="centered",
+    initial_sidebar_state="collapsed",
+)
 
+st.markdown("""
+<style>
+/* =========================================================
+   FONTS
+   ========================================================= */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600&display=swap');
 
-# ---------------------------------------------------------------------------
-# Payout
-# ---------------------------------------------------------------------------
+html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+h1, h2, h3 { font-family: 'Playfair Display', serif !important; }
 
-def compute_gain(result: int, bet: int, is_blackjack: bool = False, is_double: bool = False) -> int:
-    """Convert a GameResult into a net coin (can be negative).
+/* =========================================================
+   GLOBAL BACKGROUND
+   ========================================================= */
+.stApp {
+    background: radial-gradient(ellipse at top, #0f2017 0%, #0a0a0f 70%);
+    color: #e8e8e8;
+}
 
-    Like I said GameResult can't be used as
-    multipliers for payout so we'll use this func and the Payout class to get your gains:
-      WIN   -> +bet (normal) | +1.5xbet (blackjack) | +2xbet (double)
-      DRAW  ->  0   (even)
-      LOSE  -> -bet (normal) | -2xbet (double)
-    """
-    if result == GameResult.WIN:
-        if is_blackjack:
-            return int(bet * Payout.BLACKJACK)
-        if is_double:
-            return int(bet * Payout.DOUBLE)
-        return bet
-    if result == GameResult.DRAW:
-        return 0
-    # LOSE
-    return -int(bet * Payout.DOUBLE) if is_double else -bet
+/* =========================================================
+   TABS
+   ========================================================= */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 4px;
+    background: #0f0f1a;
+    border-radius: 12px;
+    padding: 5px;
+    border: 1px solid #2a2a3a;
+    flex-wrap: wrap;       /* wrap on small screens */
+}
+.stTabs [data-baseweb="tab"] {
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 0.85rem;
+    letter-spacing: 0.4px;
+    color: #888 !important;
+    background: transparent !important;
+    border: none !important;
+    white-space: nowrap;
+}
+.stTabs [aria-selected="true"] {
+    background: #1a1a2e !important;
+    color: #fbbf24 !important;
+    border: 1px solid #3a3a5a !important;
+}
+.stTabs [data-baseweb="tab-panel"] { padding-top: 16px; }
 
+/* =========================================================
+   BUTTONS
+   ========================================================= */
+.stButton > button {
+    background: linear-gradient(135deg, #1a1a2e, #16213e) !important;
+    color: #e8e8e8 !important;
+    border: 1px solid #3a3a5a !important;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    font-size: 0.9rem !important;
+    transition: all 0.15s ease !important;
+    padding: 10px 12px !important;
+    min-height: 44px !important;   /* touch-friendly */
+}
+.stButton > button:hover {
+    background: linear-gradient(135deg, #2a2a4e, #1a2a5e) !important;
+    border-color: #fbbf24 !important;
+    color: #fbbf24 !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 4px 16px rgba(251,191,36,0.2) !important;
+}
+.stButton > button[kind="primary"] {
+    background: linear-gradient(135deg, #166534, #15803d) !important;
+    border-color: #22c55e !important;
+    color: #fff !important;
+}
+.stButton > button[kind="primary"]:hover {
+    background: linear-gradient(135deg, #15803d, #16a34a) !important;
+    border-color: #4ade80 !important;
+    box-shadow: 0 4px 16px rgba(34,197,94,0.3) !important;
+}
+.stButton > button:disabled {
+    opacity: 0.38 !important;
+    cursor: not-allowed !important;
+    transform: none !important;
+}
 
-# ---------------------------------------------------------------------------
-# Betting
-# ---------------------------------------------------------------------------
+/* =========================================================
+   DATAFRAME / ALERTS / DIVIDER
+   ========================================================= */
+.stDataFrame { border-radius: 8px; overflow: hidden; }
+.stAlert { border-radius: 8px !important; }
+#MainMenu, footer, header { visibility: hidden; }
+hr { border-color: #2a2a3a !important; margin: 20px 0 !important; }
 
-def ask_bet(capital: int) -> int:
-    """Prompt until the player picks a valid bet they can afford."""
-    affordable = [b for b in Bet.OPTIONS if b <= capital]
+/* =========================================================
+   GAME TABLE  (green felt card area)
+   ========================================================= */
+.bj-table {
+    background: linear-gradient(135deg, #0a4f2a, #0d6635);
+    border-radius: 16px;
+    padding: 18px 20px;
+    margin: 10px 0;
+    border: 3px solid #2d8a50;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+    overflow: hidden;           /* prevents any child from leaking out */
+}
+.bj-divider {
+    border-top: 1px solid rgba(255,255,255,0.12);
+    margin: 10px 0;
+}
+.bj-hand { margin: 6px 0; }
+.bj-hand-label {
+    font-size: 11px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    margin-bottom: 5px;
+}
+.bj-cards-row {
+    display: flex;
+    flex-wrap: wrap;           /* wrap cards on narrow screens */
+    align-items: center;
+    gap: 2px;
+}
+.bj-score {
+    font-size: 13px;
+    color: rgba(255,255,255,0.5);
+    margin-left: 6px;
+}
 
-    options_str = " / ".join(str(b) for b in affordable)
-    prompt = f"How much do you want to bet? ({options_str}) 🪙 : "
+/* =========================================================
+   CARDS
+   ========================================================= */
+.bj-card {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 74px;
+    border-radius: 7px;
+    background: #f8f5f0;
+    border: 2px solid #ddd;
+    margin: 3px;
+    font-weight: 700;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.3);
+    line-height: 1.1;
+    flex-shrink: 0;
+}
+.bj-card-hidden {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 74px;
+    border-radius: 7px;
+    background: linear-gradient(135deg, #1a1a2e 25%, #16213e 100%);
+    border: 2px solid #4a4a6a;
+    margin: 3px;
+    font-size: 20px;
+    color: #4a4a6a;
+    font-weight: bold;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.4);
+    flex-shrink: 0;
+}
+.bj-rank { font-size: 16px; }
+.bj-suit { font-size: 19px; }
 
-    while True:
-        raw = input(prompt).strip()
-        if raw.isdigit() and int(raw) in affordable:
-            return int(raw)
-        print(f"  Please pick one of: {options_str}")
+/* =========================================================
+   HEADER / CAPITAL
+   ========================================================= */
+.bj-header {
+    text-align: center;
+    padding: 8px 0 16px;
+}
+.bj-logo { font-size: 38px; }
+.bj-title {
+    margin: 0 !important;
+    font-size: 1.9rem !important;
+    letter-spacing: 3px;
+}
+.bj-capital {
+    text-align: center;
+    margin-bottom: 16px;
+}
+.bj-capital-label {
+    font-size: 1rem;
+    color: #888;
+}
+.bj-capital span {
+    font-size: 1.55rem;
+    font-weight: 700;
+}
 
+/* =========================================================
+   MISC GAME ELEMENTS
+   ========================================================= */
+.bj-hint {
+    text-align: center;
+    color: #aaa;
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+}
+.bj-msg {
+    text-align: center;
+    font-size: 1rem;
+    color: #fbbf24;
+    margin-bottom: 6px;
+}
+.bj-gain-row {
+    text-align: center;
+    margin: 10px 0;
+}
+.bj-gain-cap {
+    color: #888;
+    font-size: 0.88rem;
+}
+.bj-broke {
+    text-align: center;
+    padding: 20px;
+    background: #1a0a0a;
+    border-radius: 12px;
+    border: 1px solid #7f1d1d;
+    margin-bottom: 16px;
+}
+.bj-broke-title {
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #f87171;
+    margin: 8px 0 4px;
+}
+.bj-broke-sub {
+    font-size: 0.88rem;
+    color: #888;
+    margin: 0;
+}
 
-# ---------------------------------------------------------------------------
-# Menu
-# ---------------------------------------------------------------------------
+/* =========================================================
+   RESPONSIVE — narrow screens (≤ 480 px, e.g. phones)
+   ========================================================= */
+@media (max-width: 480px) {
+    .bj-title  { font-size: 1.5rem !important; letter-spacing: 2px; }
+    .bj-logo   { font-size: 28px; }
+    .bj-capital span { font-size: 1.25rem; }
 
-def get_menu_choice() -> str:
-    """Game Menu,
+    /* Smaller cards so 5+ cards still fit */
+    .bj-card, .bj-card-hidden {
+        width: 42px !important;
+        height: 60px !important;
+        margin: 2px !important;
+        border-radius: 5px !important;
+    }
+    .bj-rank { font-size: 13px !important; }
+    .bj-suit { font-size: 15px !important; }
+    .bj-card-hidden { font-size: 16px !important; }
 
-    Start game: starts a new game with new capital if it's your first game or your previous one if not
+    .bj-table {
+        padding: 12px 14px !important;
+        border-radius: 10px !important;
+    }
+    .bj-hand-label { font-size: 10px !important; }
 
-    Check Rules: just redirect to Blackjack rules
-
-    Quit: if you want to leave game    
-    """
-    has_stats = CACHE_FILE.is_file()
-    options = ["start game", "check rules", "quit"]
-    if has_stats:
-        options.insert(1, "check stats")
-
-    prompt = "Welcome! What do you want to do? (" + " / ".join(o.title() for o in options) + "): "
-
-    while True:
-        choice = input(prompt).strip().lower()
-        if choice in options:
-            return choice
-
-
-# ---------------------------------------------------------------------------
-# Stats
-# ---------------------------------------------------------------------------
-
-def show_stats() -> None:
-    """Show stats option: win rate, total gain, balance and last 5 rounds
-
-    You start with 100 so if your total gain + 100 differ from your balance 
-    it just means you cheated in the game files xD
-    """
-    if not CACHE_FILE.is_file():
-        print("No stats yet — play at least one game first!\n")
-        return
-
-    df = pd.read_csv(CACHE_FILE, index_col=0)
-    pd.set_option("display.max_columns", None)
-    pd.set_option("display.width", None)
-    pd.set_option("display.max_colwidth", None)
-    
-    # Exclude DRAW (-1) from win rate — only count decisive outcomes
-    finished = df[df["end"].isin([GameResult.WIN, GameResult.LOSE])]
-    win_rate = finished["end"].mean() if not finished.empty else 0.0
-
-    total_gain = df["gain"].sum()
-    print(f"\n🪙  Win rate      : {win_rate:.1%} ({df['game_id'].nunique()} Games)")
-    print(f"📈  Total gain    : {'+' if total_gain >= 0 else ''}{total_gain} 🪙")
-    print(f"📊  Last 5 rounds :\n{df.tail()}\n")
-
-def get_last_capital() -> int:
-    """Return last known capital from cache, or starting capital if none."""
-    if not CACHE_FILE.is_file():
-        return Wallet.STARTING_CAPITAL
-
-    df = pd.read_csv(CACHE_FILE)
-    if df.empty or "capital_after" not in df.columns:
-        return Wallet.STARTING_CAPITAL
-
-    return int(df["capital_after"].iloc[-1])
-
-# ---------------------------------------------------------------------------
-# Save results
-# ---------------------------------------------------------------------------
-
-def save_results(results: dict) -> None:
-    """Save results into a CSV"""
-    new_df = pd.DataFrame(results)
-
-    if CACHE_FILE.is_file():
-        existing = pd.read_csv(CACHE_FILE, index_col=0)
-        new_df = pd.concat([existing, new_df], ignore_index=True)
-
-    new_df.to_csv(CACHE_FILE)
-
-
-# ---------------------------------------------------------------------------
-# Game loop
-# ---------------------------------------------------------------------------
-
-def play_game() -> None:
-    deck = non_shuffled_deck.copy()
-    shuffle(deck)
-    pos = 0
-    capital = get_last_capital()
-
-    print("\n=== BLACKJACK 🃏 ===\n")
-    if CACHE_FILE.is_file():
-        print(f"🔄 Resuming the game with saved capital : {capital} 🪙\n")
-        if capital == 0:
-            print(f"💸 You're broke dude… 🥀 alright, I’ll let you play just this once 🎁\n💰 100 coins have been added to your capital.")
-            capital = Wallet.STARTING_CAPITAL
-    else:
-        print(f"🆕 New game: starting capital {capital} 🪙\n")
-
-    results: dict[str, list] = {
-        "game_id": [],
-        "end": [],
-        "bet": [],
-        "gain": [],
-        "capital_after": [],
-        "player_hand": [],
-        "house_hand": [],
+    /* Action buttons: smaller text, still touch-friendly */
+    .stButton > button {
+        font-size: 0.78rem !important;
+        padding: 8px 6px !important;
+        min-height: 40px !important;
     }
 
-    while capital > 0:
-        print(f"💰 Capital : {capital} 🪙")
-        bet = ask_bet(capital)
+    /* Tabs: smaller padding */
+    .stTabs [data-baseweb="tab"] {
+        padding: 6px 10px !important;
+        font-size: 0.78rem !important;
+    }
+}
 
-        game_id = str(uuid.uuid4())[:8]  # short unique ID in case we split
+/* =========================================================
+   RESPONSIVE — medium screens (481–768 px, small tablets)
+   ========================================================= */
+@media (min-width: 481px) and (max-width: 768px) {
+    .bj-card, .bj-card-hidden {
+        width: 48px !important;
+        height: 68px !important;
+    }
+    .bj-rank { font-size: 15px !important; }
+    .bj-suit { font-size: 17px !important; }
+}
+</style>
+""", unsafe_allow_html=True)
 
-        result, deck, pos, player_hand, house_hand, action = Turn.house(
-            *Turn.player(
-                *Turn.start(deck, pos)
-            )
-        )
+# ---- Import pages ----
+from pages import game, rules, stats
 
-        # Normalise: split returns lists, normal play returns scalars
-        is_split = isinstance(result, list)
-        ends    = result      if is_split else [result]
-        p_hands = player_hand if is_split else [player_hand]
-        h_hands = house_hand  if is_split else [house_hand]
+# ---- Session state init ----
+from config import Wallet
+if "history" not in st.session_state:
+    st.session_state.history = []
+if "capital" not in st.session_state:
+    st.session_state.capital = Wallet.STARTING_CAPITAL
 
-        # Each hand in a split plays for the full original bet.
-        # No upfront deduction — compute_gain() returns a net delta:
-        #   WIN  → +bet  |  DRAW → 0  |  LOSE → -bet
-        hand_bets = [bet] * len(ends)
-
-        round_gain = 0
-        for end, p, h, hand_bet in zip(ends, p_hands, h_hands, hand_bets):
-            gain = compute_gain(end, hand_bet, is_blackjack=(action == "blackjack"), is_double=(action == "double"))
-            capital = max(capital + gain, 0)  # floor at 0
-            round_gain += gain
-
-            results["game_id"].append(game_id)
-            results["end"].append(end)
-            results["bet"].append(hand_bet)
-            results["gain"].append(gain)
-            results["capital_after"].append(capital)
-            results["player_hand"].append([card.full_name for card in p])
-            results["house_hand"].append([card.full_name for card in h])
-
-        print(f"  → {'+' if round_gain >= 0 else ''}{round_gain} 🪙  |  Capital : {capital} 🪙\n")
-
-        if capital <= 0:
-            print("💸 You're out of coins — game over!\n")
-            break
-
-        again = input("Play again? (yes / quit): ").strip().lower()
-        if again != "yes":
-            break
-
-    save_results(results)
-    print(f"Results saved. Final capital: {capital} 🪙\n")
-
-
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
-
-def main() -> None:
-    DATA_DIR.mkdir(exist_ok=True)
-
-    while True:
-        choice = get_menu_choice()
-
-        if choice == "quit":
-            print("Goodbye!")
-            break
-
-        if choice == "check rules":
-            print("\nRules: https://bicyclecards.com/how-to-play/blackjack\n")
-
-        if choice == "check stats":
-            show_stats()
-
-        if choice == "start game":
-            play_game()
-
-
-if __name__ == "__main__":
-    main()
+# ---- Tabs ----
+tabs = st.tabs(["🃏 Start Game", "📖 Check Rules", "📊 Check Stats"])
+with tabs[0]: game.render()
+with tabs[1]: rules.render()
+with tabs[2]: stats.render()
