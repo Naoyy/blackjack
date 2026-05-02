@@ -1,7 +1,7 @@
 # Blackjack 
 Ce projet contient deux versions du jeu Blackjack :
 
-* [Version Web (GUI)]([blackjack-gui-naoyy.streamlit.app](https://blackjack-gui-naoyy.streamlit.app/)): branche `main`
+* [Version Web (GUI)](https://blackjack-gui-naoyy.streamlit.app/): branche `main`
 * Version CLI: branche `feature/cli-version`
 
 ---
