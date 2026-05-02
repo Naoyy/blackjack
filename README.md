@@ -1,7 +1,7 @@
 # Blackjack 
 Ce projet contient deux versions du jeu Blackjack :
 
-* Version Web (GUI): branche `main`
+* [Version Web (GUI)]([blackjack-gui-naoyy.streamlit.app](https://blackjack-gui-naoyy.streamlit.app/)): branche `main`
 * Version CLI: branche `feature/cli-version`
 
 ---
@@ -19,6 +19,7 @@ pip install -r requirements.txt
 ---
 
 ## Jouer à la version GUI
+Il est possible de jouer directement ici [blackjack-gui-naoyy.streamlit.app](https://blackjack-gui-naoyy.streamlit.app/)
 
 ```
 git clone https://github.com/Naoyy/blackjack.git
